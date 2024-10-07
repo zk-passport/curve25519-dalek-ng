@@ -148,28 +148,29 @@ cfg_if::cfg_if! {
 
         impl From<EdwardsPoint> for Ed25519AffinePoint {
             fn from(value: EdwardsPoint) -> Self {
+                // Compute Z inverse
+                let z_inv = value.Z.invert();
+        
+                // Convert X and Y to affine coordinates
+                let x_affine = &value.X * &z_inv;
+                let y_affine = &value.Y * &z_inv;
+        
+                // Convert field elements to bytes
+                let x_bytes = x_affine.to_bytes();
+                let y_bytes = y_affine.to_bytes();
+        
+                // Prepare limbs for Ed25519AffinePoint
                 let mut limbs = [0u32; 16];
-
-                // Ensure that the point is normalized.
-                assert_eq!(value.Z, FieldElement::one());
-
-                // Convert the x and y coordinates to little endian u32 limbs.
-                for (x_limb, x_bytes) in limbs[..8]
-                    .iter_mut()
-                    .zip(value.X.to_bytes().chunks_exact(4))
-                {
-                    *x_limb = u32::from_le_bytes(x_bytes.try_into().unwrap());
+                for (limb, chunk) in limbs[..8].iter_mut().zip(x_bytes.chunks_exact(4)) {
+                    *limb = u32::from_le_bytes(chunk.try_into().unwrap());
                 }
-                for (y_limb, y_bytes) in limbs[8..]
-                    .iter_mut()
-                    .zip(value.Y.to_bytes().chunks_exact(4))
-                {
-                    *y_limb = u32::from_le_bytes(y_bytes.try_into().unwrap());
+                for (limb, chunk) in limbs[8..].iter_mut().zip(y_bytes.chunks_exact(4)) {
+                    *limb = u32::from_le_bytes(chunk.try_into().unwrap());
                 }
-
-                Self { 0: limbs }
+        
+                Self(limbs)
             }
-        }
+        }        
 
         impl From<Ed25519AffinePoint> for EdwardsPoint {
             fn from(value: Ed25519AffinePoint) -> Self {
